@@ -1,0 +1,252 @@
+:root {
+  --bg-1: #080c24;
+  --bg-2: #12173f;
+  --cyan: #40e8ff;
+  --pink: #ff6fcf;
+  --lime: #8fff9e;
+  --glass: rgba(255, 255, 255, 0.08);
+  --text: #eff4ff;
+  --muted: #c1c8df;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: radial-gradient(circle at top right, #1f2d77, var(--bg-1) 55%),
+    linear-gradient(130deg, var(--bg-2), #090f2d);
+  font-family: "Inter", "Segoe UI", sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at center, black 20%, transparent 90%);
+  animation: drift 20s linear infinite;
+  pointer-events: none;
+}
+
+.hero {
+  position: relative;
+  text-align: center;
+  padding: 2.5rem 1rem 1.75rem;
+  animation: drop 800ms ease-out;
+}
+
+.hero h1 {
+  margin-bottom: 0.6rem;
+  font-size: clamp(1.7rem, 4vw, 3rem);
+}
+
+.hero p {
+  max-width: 760px;
+  margin: 0 auto;
+  color: var(--muted);
+}
+
+.layout {
+  width: min(1200px, 94vw);
+  margin: 0 auto 2rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.glass {
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
+  animation: fadeUp 0.7s ease;
+}
+
+textarea,
+.output {
+  width: 100%;
+  min-height: 280px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: rgba(0, 0, 0, 0.35);
+  color: #f3f7ff;
+  font: 0.94rem/1.5 "JetBrains Mono", "Fira Code", monospace;
+}
+
+.output {
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+
+button {
+  border: none;
+  color: #051326;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--cyan), var(--lime));
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+button:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 20px rgba(64, 232, 255, 0.36);
+}
+
+button.secondary {
+  background: linear-gradient(135deg, #ffd36e, var(--pink));
+}
+
+.phase-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+
+.phase-card {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 0.7rem;
+  background: rgba(255, 255, 255, 0.07);
+  transform-origin: center;
+  animation: bounceIn 0.55s ease forwards;
+}
+
+.phase-card h3 {
+  margin-top: 0;
+}
+
+.phase-card pre {
+  max-height: 180px;
+  overflow: auto;
+  background: rgba(2, 5, 16, 0.65);
+  border-radius: 10px;
+  padding: 0.5rem;
+}
+
+.tree-container {
+  overflow: auto;
+  padding: 0.7rem;
+  border-radius: 14px;
+  background: rgba(3, 8, 28, 0.65);
+}
+
+.tree-node {
+  margin-left: 1rem;
+  position: relative;
+  padding-left: 1rem;
+}
+
+.tree-node::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.9rem;
+  width: 0.7rem;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.4);
+}
+
+.tree-label {
+  display: inline-block;
+  margin: 0.28rem 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(130deg, rgba(64, 232, 255, 0.3), rgba(255, 111, 207, 0.3));
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  cursor: pointer;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.collapsed > .tree-children {
+  display: none;
+}
+
+.team-list {
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  65% {
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(32px);
+  }
+}
+
+@keyframes drop {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

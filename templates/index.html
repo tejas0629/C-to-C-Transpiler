@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>C → C++ 7-Phase Transpiler Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  </head>
+  <body>
+    <div class="bg-grid"></div>
+    <header class="hero">
+      <h1>C → C++ Compiler Pipeline Transpiler</h1>
+      <p>
+        A team project showcasing all <strong>7 compiler phases</strong>, generated parse tree,
+        and an animated visualization dashboard.
+      </p>
+    </header>
+
+    <main class="layout">
+      <section class="panel glass">
+        <h2>Input C Code</h2>
+        <textarea id="cCodeInput" spellcheck="false">
+#include <stdio.h>
+
+int main() {
+    int a = 5;
+    int b = 10;
+    int sum = a + b;
+    printf("Sum = %d", sum);
+    return 0;
+}
+        </textarea>
+        <div class="actions">
+          <button id="transpileBtn">Run 7-Phase Transpiler</button>
+          <button id="sampleBtn" class="secondary">Load Advanced Sample</button>
+        </div>
+      </section>
+
+      <section class="panel glass">
+        <h2>Generated C++ Code</h2>
+        <pre id="cppOutput" class="output"></pre>
+      </section>
+
+      <section class="panel glass full">
+        <h2>Compiler Phases Timeline</h2>
+        <div id="phaseCards" class="phase-cards"></div>
+      </section>
+
+      <section class="panel glass full">
+        <h2>Parse Tree (Animated)</h2>
+        <p class="muted">Nodes pulse when rendered. Click to expand/collapse child branches.</p>
+        <div id="parseTreeContainer" class="tree-container"></div>
+      </section>
+
+      <section class="panel glass full">
+        <h2>Team Contribution Breakdown</h2>
+        <ul class="team-list">
+          <li><strong>Tejas (Team Lead):</strong> Architecture planning, compiler phase design, and integration strategy.</li>
+          <li><strong>Mayank:</strong> Python backend APIs, lexical/syntax/semantic phase wiring, and error handling.</li>
+          <li><strong>Devesh:</strong> IR generation, optimization simulation, and C→C++ rule-based code generation.</li>
+          <li><strong>Megha (Frontend):</strong> UI/UX design, animation system, parse tree visualizations, and responsive interactions.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
