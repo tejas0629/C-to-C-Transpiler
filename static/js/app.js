@@ -1,41 +1,97 @@
-const cCodeInput = document.getElementById("cCodeInput");
+const codeInput = document.getElementById("codeInput");
+const sourceLangSelect = document.getElementById("sourceLang");
+const targetLangSelect = document.getElementById("targetLang");
 const transpileBtn = document.getElementById("transpileBtn");
 const sampleBtn = document.getElementById("sampleBtn");
-const cppOutput = document.getElementById("cppOutput");
+const clearBtn = document.getElementById("clearBtn");
+const translatedOutput = document.getElementById("translatedOutput");
 const phaseCards = document.getElementById("phaseCards");
 const parseTreeContainer = document.getElementById("parseTreeContainer");
 
-const ADVANCED_SAMPLE = `#include <stdio.h>
-
-int factorial(int n) {
-    int result = 1;
-    for (int i = 1; i <= n; i = i + 1) {
-        result = result * i;
-    }
-    return result;
-}
+const SAMPLES = {
+  C: `#include <stdio.h>
 
 int main() {
-    int n = 5;
-    int out = factorial(n);
-    printf("Factorial = %d", out);
+    int a = 5;
+    int b = 10;
+    int sum = a + b;
+    printf("Sum = %d", sum);
     return 0;
-}`;
+}`,
+  "C++": `#include <iostream>
+using namespace std;
+
+int main() {
+    int x = 10;
+    int y = 20;
+    std::cout << "Sum: " << (x + y) << std::endl;
+    return 0;
+}`,
+  Java: `public class Main {
+    public static void main(String[] args) {
+        int num = 42;
+        System.out.println("Number: " + num);
+    }
+}`,
+  Python: `def main():
+    x = 5
+    y = 10
+    print("Sum:", x + y)
+
+main()`,
+};
+
+clearBtn.addEventListener("click", () => {
+  codeInput.value = "";
+  translatedOutput.textContent = "";
+  phaseCards.innerHTML = "";
+  parseTreeContainer.innerHTML = "";
+  codeInput.focus();
+});
 
 sampleBtn.addEventListener("click", () => {
-  cCodeInput.value = ADVANCED_SAMPLE;
-  cCodeInput.focus();
+  const sourceLang = sourceLangSelect.value;
+  codeInput.value = SAMPLES[sourceLang] || SAMPLES["C"];
+  codeInput.focus();
 });
+
+sourceLangSelect.addEventListener("change", () => {
+  validateLanguageSelection();
+});
+
+targetLangSelect.addEventListener("change", () => {
+  validateLanguageSelection();
+});
+
+function validateLanguageSelection() {
+  const sourceL = sourceLangSelect.value;
+  const targetL = targetLangSelect.value;
+
+  if (sourceL === targetL) {
+    transpileBtn.disabled = true;
+    transpileBtn.title = "Source and target languages must be different";
+  } else {
+    transpileBtn.disabled = false;
+    transpileBtn.title = "";
+  }
+}
 
 transpileBtn.addEventListener("click", async () => {
   transpileBtn.disabled = true;
-  transpileBtn.textContent = "Compiling...";
+  transpileBtn.textContent = "Transpiling...";
 
   try {
+    const sourceL = sourceLangSelect.value;
+    const targetL = targetLangSelect.value;
+
     const response = await fetch("/api/transpile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: cCodeInput.value }),
+      body: JSON.stringify({
+        code: codeInput.value,
+        source_language: sourceL,
+        target_language: targetL,
+      }),
     });
 
     const data = await response.json();
@@ -43,16 +99,17 @@ transpileBtn.addEventListener("click", async () => {
       throw new Error(data.error || "Failed to transpile code");
     }
 
-    cppOutput.textContent = data.cpp_code;
+    translatedOutput.textContent = data.translated_code;
     renderPhases(data.phases);
     renderParseTree(data.parse_tree);
   } catch (error) {
-    cppOutput.textContent = `Error: ${error.message}`;
+    translatedOutput.textContent = `Error: ${error.message}`;
     phaseCards.innerHTML = "";
     parseTreeContainer.innerHTML = "";
   } finally {
     transpileBtn.disabled = false;
-    transpileBtn.textContent = "Run 7-Phase Transpiler";
+    transpileBtn.textContent = "Transpile";
+    validateLanguageSelection();
   }
 });
 
@@ -130,4 +187,6 @@ function extractChildren(node) {
   return children;
 }
 
-window.dispatchEvent(new Event("load"));
+window.addEventListener("load", () => {
+  validateLanguageSelection();
+});

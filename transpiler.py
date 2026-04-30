@@ -1,23 +1,13 @@
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 
 KEYWORDS = {
-    "int",
-    "float",
-    "double",
-    "char",
-    "void",
-    "if",
-    "else",
-    "for",
-    "while",
-    "return",
-    "break",
-    "continue",
-    "printf",
-    "scanf",
+    "int", "float", "double", "char", "void", "if", "else", "for", "while",
+    "return", "break", "continue", "printf", "scanf", "public", "class",
+    "static", "def", "import", "from", "as", "with", "try", "except",
 }
 
 TOKEN_SPECIFICATION = [
@@ -26,7 +16,7 @@ TOKEN_SPECIFICATION = [
     ("STRING", r'"([^"\\]|\\.)*"'),
     ("NUMBER", r"\d+(?:\.\d+)?"),
     ("ID", r"[A-Za-z_][A-Za-z0-9_]*"),
-    ("OP", r"==|!=|<=|>=|\+\+|--|&&|\|\||[+\-*/%=<>!&|]"),
+    ("OP", r"::==|!=|<=|>=|\+\+|--|&&|\|\||::|[+\-*/%=<>!&|]"),
     ("PUNCT", r"[{}()\[\],;]"),
     ("NEWLINE", r"\n"),
     ("SKIP", r"[ \t\r]+"),
@@ -50,8 +40,10 @@ class Token:
 @dataclass
 class CompilerResult:
     phases: Dict[str, Any]
-    cpp_code: str
+    translated_code: str
     parse_tree: Dict[str, Any]
+    source_lang: str
+    target_lang: str
 
 
 class ParseError(Exception):
@@ -435,122 +427,553 @@ def optimize_intermediate_code(ir: List[str]) -> List[str]:
     return optimized
 
 
-def _split_arguments(arg_text: str) -> List[str]:
-    if not arg_text.strip():
-        return []
-    args = []
-    current = []
-    depth = 0
-    in_string = False
-    escaped = False
+class Translator(ABC):
+    """Base class for all language translators."""
 
-    for char in arg_text:
-        if in_string:
-            current.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
+    @abstractmethod
+    def translate(self, code: str) -> str:
+        pass
 
-        if char == '"':
-            in_string = True
-            current.append(char)
-        elif char == "(":
-            depth += 1
-            current.append(char)
-        elif char == ")":
-            depth -= 1
-            current.append(char)
-        elif char == "," and depth == 0:
+    @abstractmethod
+    def get_source_lang(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_target_lang(self) -> str:
+        pass
+
+
+class CToC_Translator(Translator):
+    """C to C++ Translator."""
+
+    def get_source_lang(self) -> str:
+        return "C"
+
+    def get_target_lang(self) -> str:
+        return "C++"
+
+    def translate(self, code: str) -> str:
+        cpp = code
+
+        cpp = re.sub(r"#include\s*<stdio\.h>", "#include <iostream>", cpp)
+        if "#include <iostream>" not in cpp:
+            cpp = "#include <iostream>\n" + cpp
+
+        if "using namespace std;" not in cpp:
+            cpp = cpp.replace("#include <iostream>", "#include <iostream>\nusing namespace std;")
+
+        cpp = re.sub(r"\bprintf\s*\((.*?)\)\s*;", self._convert_printf_call, cpp, flags=re.DOTALL)
+        cpp = re.sub(r"\bscanf\s*\((.*?)\)\s*;", self._convert_scanf_call, cpp, flags=re.DOTALL)
+
+        cpp = re.sub(r"\bmalloc\s*\(", "new ", cpp)
+        cpp = re.sub(r"\bfree\s*\(", "delete ", cpp)
+
+        return cpp
+
+    def _convert_printf_call(self, match: re.Match) -> str:
+        inside = match.group(1)
+        arguments = self._split_arguments(inside)
+        if not arguments:
+            return "std::cout << std::endl;"
+
+        first = arguments[0]
+        if not first.startswith('"'):
+            return f"std::cout << {inside} << std::endl;"
+
+        fmt = first.strip('"')
+        values = arguments[1:]
+        parts = re.split(r"(%[dfscl])", fmt)
+        converted_parts: List[str] = []
+        value_index = 0
+
+        for part in parts:
+            if re.fullmatch(r"%[dfscl]", part):
+                if value_index < len(values):
+                    converted_parts.append(values[value_index])
+                value_index += 1
+            elif part:
+                converted_parts.append(repr(part).replace("'", '"'))
+
+        stream = " << ".join(converted_parts) if converted_parts else '""'
+        return f"std::cout << {stream} << std::endl;"
+
+    def _convert_scanf_call(self, match: re.Match) -> str:
+        inside = match.group(1)
+        arguments = self._split_arguments(inside)
+        values = [arg.replace("&", "").strip() for arg in arguments[1:]]
+        if not values:
+            return "// TODO: scanf conversion requires variable references"
+        return "std::cin >> " + " >> ".join(values) + ";"
+
+    def _split_arguments(self, arg_text: str) -> List[str]:
+        if not arg_text.strip():
+            return []
+        args = []
+        current = []
+        depth = 0
+        in_string = False
+        escaped = False
+
+        for char in arg_text:
+            if in_string:
+                current.append(char)
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+                current.append(char)
+            elif char == "(":
+                depth += 1
+                current.append(char)
+            elif char == ")":
+                depth -= 1
+                current.append(char)
+            elif char == "," and depth == 0:
+                args.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+
+        if current:
             args.append("".join(current).strip())
-            current = []
-        else:
-            current.append(char)
-
-    if current:
-        args.append("".join(current).strip())
-    return args
+        return args
 
 
-def _convert_printf_call(match: re.Match) -> str:
-    inside = match.group(1)
-    arguments = _split_arguments(inside)
-    if not arguments:
-        return "std::cout << std::endl;"
+class CppToCTranslator(Translator):
+    """C++ to C Translator."""
 
-    first = arguments[0]
-    if not first.startswith('"'):
-        return f"std::cout << {inside} << std::endl;"
+    def get_source_lang(self) -> str:
+        return "C++"
 
-    fmt = first.strip('"')
-    values = arguments[1:]
-    parts = re.split(r"(%[dfscl])", fmt)
-    converted_parts: List[str] = []
-    value_index = 0
+    def get_target_lang(self) -> str:
+        return "C"
 
-    for part in parts:
-        if re.fullmatch(r"%[dfscl]", part):
-            if value_index < len(values):
-                converted_parts.append(values[value_index])
-            value_index += 1
-        elif part:
-            converted_parts.append(repr(part).replace("'", '"'))
+    def translate(self, code: str) -> str:
+        c_code = code
 
-    stream = " << ".join(converted_parts) if converted_parts else '""'
-    return f"std::cout << {stream} << std::endl;"
+        # Remove scope resolution operators
+        c_code = re.sub(r"std::", "", c_code)
+        
+        # Replace includes
+        c_code = re.sub(r"#include\s*<iostream>", "#include <stdio.h>", c_code)
+        c_code = re.sub(r"using\s+namespace\s+std\s*;", "", c_code)
+
+        # Convert cout to printf - handle multiple << operators
+        def convert_cout_line(match):
+            full_expr = match.group(1)
+            # Remove extra << and endl
+            parts = [p.strip() for p in full_expr.split("<<")]
+            if parts[-1] == "endl":
+                parts = parts[:-1]
+            
+            # Build printf format string
+            printf_args = []
+            format_str = ""
+            for part in parts:
+                if part.startswith('"') and part.endswith('"'):
+                    format_str += part.strip('"')
+                else:
+                    format_str += "%s"
+                    printf_args.append(part)
+            
+            if printf_args:
+                return f'printf("{format_str}\\n", {", ".join(printf_args)});'
+            else:
+                return f'printf("{format_str}\\n");'
+        
+        c_code = re.sub(r"cout\s*<<\s*(.*?)\s*;", convert_cout_line, c_code, flags=re.DOTALL)
+        
+        # Convert cin to scanf
+        c_code = re.sub(r"cin\s*>>\s*(.*?)\s*;", 
+                       lambda m: f"scanf(\"%d\", &{m.group(1).strip()});", c_code)
+
+        # Convert memory management
+        c_code = re.sub(r"\bnew\s+(\w+)", r"malloc(sizeof(\1))", c_code)
+        c_code = re.sub(r"\bdelete\s+", "free(", c_code)
+
+        return c_code
+
+    def _convert_cout_to_printf(self, output_expr: str) -> str:
+        output_expr = output_expr.strip()
+        if '"' in output_expr:
+            return f'printf("{output_expr}\\n");'
+        return f'printf("%d\\n", {output_expr});'
 
 
-def _convert_scanf_call(match: re.Match) -> str:
-    inside = match.group(1)
-    arguments = _split_arguments(inside)
-    values = [arg.replace("&", "").strip() for arg in arguments[1:]]
-    if not values:
-        return "// TODO: scanf conversion requires variable references"
-    return "std::cin >> " + " >> ".join(values) + ";"
+class CToJavaTranslator(Translator):
+    """C to Java Translator."""
+
+    def get_source_lang(self) -> str:
+        return "C"
+
+    def get_target_lang(self) -> str:
+        return "Java"
+
+    def translate(self, code: str) -> str:
+        java = "public class Program {\n    public static void main(String[] args) {\n"
+
+        lines = code.split("\n")
+        for line in lines:
+            if re.match(r"#include", line) or re.match(r"int main", line) or ("main" in code and "{" in line):
+                continue
+            if line.strip().startswith("return"):
+                continue
+
+            java_line = self._convert_c_statement_to_java(line)
+            if java_line.strip():
+                java += "        " + java_line + "\n"
+
+        java += "    }\n}\n"
+        return java
+
+    def _convert_c_statement_to_java(self, statement: str) -> str:
+        statement = statement.strip()
+
+        statement = re.sub(r"\bint\s+(\w+)", r"int \1", statement)
+        statement = re.sub(r"\bfloat\s+(\w+)", r"float \1", statement)
+        statement = re.sub(r"\bchar\s+(\w+)", r"char \1", statement)
+
+        statement = re.sub(r"\bprintf\s*\((.*?)\)\s*;", lambda m: self._convert_c_printf_to_java(m.group(1)), statement, flags=re.DOTALL)
+        statement = re.sub(r"\bscanf\s*\((.*?)\)\s*;", "// TODO: Convert scanf", statement, flags=re.DOTALL)
+
+        return statement
+
+    def _convert_c_printf_to_java(self, args_str: str) -> str:
+        args_str = args_str.strip()
+        if args_str.startswith('"'):
+            return f'System.out.println({args_str});'
+        return f'System.out.println({args_str});'
 
 
-def code_generation(c_code: str) -> str:
-    cpp = c_code
+class JavaToCTranslator(Translator):
+    """Java to C Translator."""
 
-    cpp = re.sub(r"#include\s*<stdio\.h>", "#include <iostream>", cpp)
-    if "#include <iostream>" not in cpp:
-        cpp = "#include <iostream>\n" + cpp
+    def get_source_lang(self) -> str:
+        return "Java"
 
-    if "using namespace std;" not in cpp:
-        cpp = cpp.replace("#include <iostream>", "#include <iostream>\nusing namespace std;")
+    def get_target_lang(self) -> str:
+        return "C"
 
-    cpp = re.sub(r"\bprintf\s*\((.*?)\)\s*;", _convert_printf_call, cpp, flags=re.DOTALL)
-    cpp = re.sub(r"\bscanf\s*\((.*?)\)\s*;", _convert_scanf_call, cpp, flags=re.DOTALL)
+    def translate(self, code: str) -> str:
+        c_code = "#include <stdio.h>\n\nint main() {\n"
 
-    cpp = re.sub(r"\bmalloc\s*\(", "new ", cpp)
-    cpp = re.sub(r"\bfree\s*\(", "delete ", cpp)
+        lines = code.split("\n")
+        for line in lines:
+            if "public class" in line or "public static void main" in line or "{" in line or "}" in line:
+                continue
+            if "System.out.println" in line:
+                c_code += "    printf(\"" + line.split("println(")[1].rstrip(");") + "\\n\");\n"
+            elif line.strip() and not line.strip().startswith("//"):
+                c_code += "    " + line.strip() + "\n"
 
-    return cpp
+        c_code += "    return 0;\n}\n"
+        return c_code
 
 
-def transpile_with_phases(c_code: str) -> CompilerResult:
-    tokens = lexical_analysis(c_code)
-    parse_tree = syntactic_analysis(tokens)
-    semantic_notes = semantic_analysis(parse_tree)
-    intermediate = intermediate_code_generation(tokens)
-    optimized_ir = optimize_intermediate_code(intermediate)
-    cpp_code = code_generation(c_code)
+class CToPythonTranslator(Translator):
+    """C to Python Translator."""
+
+    def get_source_lang(self) -> str:
+        return "C"
+
+    def get_target_lang(self) -> str:
+        return "Python"
+
+    def translate(self, code: str) -> str:
+        python = ""
+
+        lines = code.split("\n")
+        for line in lines:
+            if re.match(r"#include", line):
+                continue
+            if re.match(r"int main", line):
+                continue
+
+            if "{" in line and "main" not in line:
+                continue
+            if line.strip() == "}":
+                continue
+
+            python_line = self._convert_c_statement_to_python(line)
+            if python_line.strip():
+                python += python_line + "\n"
+
+        return python
+
+    def _convert_c_statement_to_python(self, statement: str) -> str:
+        statement = statement.strip()
+
+        statement = re.sub(r"\bint\s+(\w+)\s*=", r"\1 =", statement)
+        statement = re.sub(r"\bfloat\s+(\w+)\s*=", r"\1 =", statement)
+        statement = re.sub(r"\bchar\s+(\w+)\s*=", r"\1 =", statement)
+        statement = re.sub(r";\s*$", "", statement)
+
+        statement = re.sub(r"\bprintf\s*\((.*?)\)\s*;?", lambda m: self._convert_c_printf_to_python(m.group(1)), statement, flags=re.DOTALL)
+
+        return statement
+
+    def _convert_c_printf_to_python(self, args_str: str) -> str:
+        args_str = args_str.strip()
+        return f"print({args_str})"
+
+
+class PythonToCTranslator(Translator):
+    """Python to C Translator."""
+
+    def get_source_lang(self) -> str:
+        return "Python"
+
+    def get_target_lang(self) -> str:
+        return "C"
+
+    def translate(self, code: str) -> str:
+        c_code = "#include <stdio.h>\n\nint main() {\n"
+
+        lines = code.split("\n")
+
+        for line in lines:
+            stripped = line.lstrip()
+            if not stripped or stripped.startswith("#"):
+                continue
+
+            if "print(" in line:
+                print_match = re.search(r"print\((.*)\)", line)
+                if print_match:
+                    content = print_match.group(1)
+                    c_code += "    printf(\"%s\\n\", " + content + ");\n"
+            elif "=" in line and "==" not in line:
+                parts = line.split("=")
+                if len(parts) == 2:
+                    var_name = parts[0].strip()
+                    var_value = parts[1].strip()
+                    c_code += f"    int {var_name} = {var_value};\n"
+            elif stripped.startswith("if"):
+                condition = stripped.replace("if ", "").rstrip(":")
+                c_code += f"    if ({condition}) {{\n"
+            elif stripped.startswith("while"):
+                condition = stripped.replace("while ", "").rstrip(":")
+                c_code += f"    while ({condition}) {{\n"
+
+        c_code += "    return 0;\n}\n"
+        return c_code
+
+
+class CppToJavaTranslator(Translator):
+    """C++ to Java Translator."""
+
+    def get_source_lang(self) -> str:
+        return "C++"
+
+    def get_target_lang(self) -> str:
+        return "Java"
+
+    def translate(self, code: str) -> str:
+        cpp_to_c = CppToCTranslator()
+        c_to_java = CToJavaTranslator()
+        c_code = cpp_to_c.translate(code)
+        return c_to_java.translate(c_code)
+
+
+class JavaToCppTranslator(Translator):
+    """Java to C++ Translator."""
+
+    def get_source_lang(self) -> str:
+        return "Java"
+
+    def get_target_lang(self) -> str:
+        return "C++"
+
+    def translate(self, code: str) -> str:
+        java_to_c = JavaToCTranslator()
+        c_to_cpp = CToC_Translator()
+        c_code = java_to_c.translate(code)
+        return c_to_cpp.translate(c_code)
+
+
+class CppToPythonTranslator(Translator):
+    """C++ to Python Translator."""
+
+    def get_source_lang(self) -> str:
+        return "C++"
+
+    def get_target_lang(self) -> str:
+        return "Python"
+
+    def translate(self, code: str) -> str:
+        cpp_to_c = CppToCTranslator()
+        c_to_python = CToPythonTranslator()
+        c_code = cpp_to_c.translate(code)
+        return c_to_python.translate(c_code)
+
+
+class PythonToCppTranslator(Translator):
+    """Python to C++ Translator."""
+
+    def get_source_lang(self) -> str:
+        return "Python"
+
+    def get_target_lang(self) -> str:
+        return "C++"
+
+    def translate(self, code: str) -> str:
+        python_to_c = PythonToCTranslator()
+        c_to_cpp = CToC_Translator()
+        c_code = python_to_c.translate(code)
+        return c_to_cpp.translate(c_code)
+
+
+class JavaToPythonTranslator(Translator):
+    """Java to Python Translator."""
+
+    def get_source_lang(self) -> str:
+        return "Java"
+
+    def get_target_lang(self) -> str:
+        return "Python"
+
+    def translate(self, code: str) -> str:
+        java_to_c = JavaToCTranslator()
+        c_to_python = CToPythonTranslator()
+        c_code = java_to_c.translate(code)
+        return c_to_python.translate(c_code)
+
+
+class PythonToJavaTranslator(Translator):
+    """Python to Java Translator."""
+
+    def get_source_lang(self) -> str:
+        return "Python"
+
+    def get_target_lang(self) -> str:
+        return "Java"
+
+    def translate(self, code: str) -> str:
+        python_to_c = PythonToCTranslator()
+        c_to_java = CToJavaTranslator()
+        c_code = python_to_c.translate(code)
+        return c_to_java.translate(c_code)
+
+
+TRANSLATORS = {
+    ("C", "C++"): CToC_Translator(),
+    ("C++", "C"): CppToCTranslator(),
+    ("C", "Java"): CToJavaTranslator(),
+    ("Java", "C"): JavaToCTranslator(),
+    ("C", "Python"): CToPythonTranslator(),
+    ("Python", "C"): PythonToCTranslator(),
+    ("C++", "Java"): CppToJavaTranslator(),
+    ("Java", "C++"): JavaToCppTranslator(),
+    ("C++", "Python"): CppToPythonTranslator(),
+    ("Python", "C++"): PythonToCppTranslator(),
+    ("Java", "Python"): JavaToPythonTranslator(),
+    ("Python", "Java"): PythonToJavaTranslator(),
+}
+
+
+def get_translator(source_lang: str, target_lang: str) -> Optional[Translator]:
+    """Get translator for given language pair."""
+    return TRANSLATORS.get((source_lang, target_lang))
+
+
+def transpile_with_phases(code: str, source_lang: str = "C", target_lang: str = "C++") -> CompilerResult:
+    """Transpile code from source language to target language."""
+
+    if source_lang == target_lang:
+        raise ParseError("Source and target languages must be different.")
+
+    translator = get_translator(source_lang, target_lang)
+    if not translator:
+        raise ParseError(f"Translation from {source_lang} to {target_lang} is not supported.")
+
+    if not code.strip():
+        raise ParseError("Please provide source code before transpiling.")
+
+    # Initialize default values for phases
+    tokens = []
+    parse_tree = {"type": "Program", "children": []}
+    semantic_notes = []
+    intermediate = []
+    optimized_ir = []
+    translated_code = ""
+    error_msg = None
+
+    try:
+        # Try to perform all compilation phases
+        try:
+            tokens = lexical_analysis(code)
+        except ParseError as e:
+            error_msg = f"Lexical Analysis Warning: {str(e)}"
+            # Continue with empty tokens
+            tokens = []
+        
+        try:
+            parse_tree = syntactic_analysis(tokens) if tokens else {"type": "Program", "children": []}
+        except ParseError as e:
+            error_msg = error_msg or f"Syntax Analysis Warning: {str(e)}"
+            # Continue with default parse tree
+            parse_tree = {"type": "Program", "children": []}
+        
+        try:
+            semantic_notes = semantic_analysis(parse_tree)
+        except Exception as e:
+            error_msg = error_msg or f"Semantic Analysis Warning: {str(e)}"
+            semantic_notes = ["Semantic analysis skipped due to unsupported syntax."]
+        
+        try:
+            intermediate = intermediate_code_generation(tokens) if tokens else []
+        except Exception as e:
+            error_msg = error_msg or f"IR Generation Warning: {str(e)}"
+            intermediate = []
+        
+        try:
+            optimized_ir = optimize_intermediate_code(intermediate) if intermediate else []
+        except Exception as e:
+            error_msg = error_msg or f"Optimization Warning: {str(e)}"
+            optimized_ir = []
+        
+        # Try translation
+        try:
+            translated_code = translator.translate(code)
+        except Exception as e:
+            # Graceful fallback: return original code with warning
+            translated_code = code
+            error_msg = f"Translation Warning: Some syntax may not be fully supported. {str(e)}"
+    
+    except Exception as e:
+        raise ParseError(f"Critical translation error: {str(e)}")
+
+    # Build status message
+    status_msg = f"Translation from {source_lang} to {target_lang} completed"
+    if error_msg:
+        status_msg += f" with warnings: {error_msg}"
+    else:
+        status_msg += " successfully."
 
     phases = {
-        "1_lexical_analysis": [token.__dict__ for token in tokens],
+        "1_lexical_analysis": [token.__dict__ for token in tokens] if tokens else [],
         "2_syntax_analysis": parse_tree,
         "3_semantic_analysis": semantic_notes,
         "4_intermediate_code_generation": intermediate,
         "5_code_optimization": optimized_ir,
-        "6_code_generation": cpp_code,
+        "6_code_generation": translated_code,
         "7_symbol_table_and_report": {
             "tokens_count": len(tokens),
             "ir_count": len(intermediate),
-            "status": "Compilation pipeline simulated successfully.",
+            "status": status_msg,
+            "warnings": error_msg if error_msg else "No warnings",
         },
     }
 
-    return CompilerResult(phases=phases, cpp_code=cpp_code, parse_tree=parse_tree)
+    return CompilerResult(
+        phases=phases,
+        translated_code=translated_code,
+        parse_tree=parse_tree,
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )

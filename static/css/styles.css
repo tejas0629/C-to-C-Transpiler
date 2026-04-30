@@ -90,6 +90,46 @@ textarea,
   white-space: pre-wrap;
 }
 
+.language-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.8rem;
+}
+
+.selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.selector-group label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+select {
+  padding: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font: 0.9rem "Inter", sans-serif;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+select:hover {
+  border-color: rgba(64, 232, 255, 0.5);
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(64, 232, 255, 0.3);
+}
+
 .actions {
   display: flex;
   gap: 0.7rem;
@@ -111,6 +151,11 @@ button {
 button:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 8px 20px rgba(64, 232, 255, 0.36);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 button.secondary {
@@ -190,6 +235,26 @@ button.secondary {
   color: var(--muted);
 }
 
+.error-message {
+  color: #ff6b6b;
+  padding: 0.8rem;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 10px;
+  margin-bottom: 0.8rem;
+  animation: slideDown 0.3s ease;
+}
+
+.success-message {
+  color: var(--lime);
+  padding: 0.8rem;
+  background: rgba(143, 255, 158, 0.1);
+  border: 1px solid rgba(143, 255, 158, 0.3);
+  border-radius: 10px;
+  margin-bottom: 0.8rem;
+  animation: slideDown 0.3s ease;
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -225,6 +290,17 @@ button.secondary {
   }
 }
 
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes drift {
   from {
     transform: translateY(0);
@@ -247,6 +323,10 @@ button.secondary {
 
 @media (max-width: 900px) {
   .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .language-selector {
     grid-template-columns: 1fr;
   }
 }

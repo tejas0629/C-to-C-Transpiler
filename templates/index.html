@@ -3,23 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>C → C++ 7-Phase Transpiler Lab</title>
+    <title>Multi-Language Code Transpiler</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
   </head>
   <body>
     <div class="bg-grid"></div>
     <header class="hero">
-      <h1>C → C++ Compiler Pipeline Transpiler</h1>
+      <h1>Multi-Language Code Transpiler</h1>
       <p>
-        A team project showcasing all <strong>7 compiler phases</strong>, generated parse tree,
-        and an animated visualization dashboard.
+        Translate code between <strong>C, C++, Java, and Python</strong> with full compiler pipeline analysis and parse tree visualization.
       </p>
     </header>
 
     <main class="layout">
       <section class="panel glass">
-        <h2>Input C Code</h2>
-        <textarea id="cCodeInput" spellcheck="false">
+        <h2>Language Selection</h2>
+        <div class="language-selector">
+          <div class="selector-group">
+            <label for="sourceLang">Source Language</label>
+            <select id="sourceLang">
+              <option value="C">C</option>
+              <option value="C++">C++</option>
+              <option value="Java">Java</option>
+              <option value="Python">Python</option>
+            </select>
+          </div>
+          <div class="selector-group">
+            <label for="targetLang">Target Language</label>
+            <select id="targetLang">
+              <option value="C">C</option>
+              <option value="C++">C++</option>
+              <option value="Java" selected>Java</option>
+              <option value="Python">Python</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel glass">
+        <h2>Input Code</h2>
+        <textarea id="codeInput" spellcheck="false">
 #include <stdio.h>
 
 int main() {
@@ -31,14 +54,15 @@ int main() {
 }
         </textarea>
         <div class="actions">
-          <button id="transpileBtn">Run 7-Phase Transpiler</button>
-          <button id="sampleBtn" class="secondary">Load Advanced Sample</button>
+          <button id="transpileBtn">Transpile</button>
+          <button id="sampleBtn" class="secondary">Load Sample</button>
+          <button id="clearBtn" class="secondary">Clear</button>
         </div>
       </section>
 
       <section class="panel glass">
-        <h2>Generated C++ Code</h2>
-        <pre id="cppOutput" class="output"></pre>
+        <h2>Translated Code</h2>
+        <pre id="translatedOutput" class="output"></pre>
       </section>
 
       <section class="panel glass full">
@@ -50,16 +74,6 @@ int main() {
         <h2>Parse Tree (Animated)</h2>
         <p class="muted">Nodes pulse when rendered. Click to expand/collapse child branches.</p>
         <div id="parseTreeContainer" class="tree-container"></div>
-      </section>
-
-      <section class="panel glass full">
-        <h2>Team Contribution Breakdown</h2>
-        <ul class="team-list">
-          <li><strong>Tejas (Team Lead):</strong> Architecture planning, compiler phase design, and integration strategy.</li>
-          <li><strong>Mayank:</strong> Python backend APIs, lexical/syntax/semantic phase wiring, and error handling.</li>
-          <li><strong>Devesh:</strong> IR generation, optimization simulation, and C→C++ rule-based code generation.</li>
-          <li><strong>Megha (Frontend):</strong> UI/UX design, animation system, parse tree visualizations, and responsive interactions.</li>
-        </ul>
       </section>
     </main>
 
